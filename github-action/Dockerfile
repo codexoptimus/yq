@@ -1,4 +1,4 @@
-FROM harbor.yangi.uz/library/mikefarah/yq:4
+FROM harbor.yangi.uz/docker/mikefarah/yq:4
 
 COPY entrypoint.sh /entrypoint.sh
 
