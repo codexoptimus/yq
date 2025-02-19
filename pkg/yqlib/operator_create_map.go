@@ -5,7 +5,7 @@ import (
 )
 
 func createMapOperator(d *dataTreeNavigator, context Context, expressionNode *ExpressionNode) (Context, error) {
-	log.Debugf("-- createMapOperation")
+	log.Debugf("createMapOperation")
 
 	//each matchingNodes entry should turn into a sequence of keys to create.
 	//then collect object should do a cross function of the same index sequence for all matches.
@@ -53,7 +53,7 @@ func sequenceFor(d *dataTreeNavigator, context Context, matchingNode *CandidateN
 	log.Debugf("**********sequenceFor %v", NodeToString(matchingNode))
 
 	mapPairs, err := crossFunction(d, context.ChildContext(matches), expressionNode,
-		func(d *dataTreeNavigator, context Context, lhs *CandidateNode, rhs *CandidateNode) (*CandidateNode, error) {
+		func(_ *dataTreeNavigator, _ Context, lhs *CandidateNode, rhs *CandidateNode) (*CandidateNode, error) {
 			node := &CandidateNode{Kind: MappingNode, Tag: "!!map"}
 
 			log.Debugf("**********adding key %v and value %v", NodeToString(lhs), NodeToString(rhs))

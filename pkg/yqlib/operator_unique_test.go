@@ -15,6 +15,16 @@ var uniqueOperatorScenarios = []expressionScenario{
 		},
 	},
 	{
+		description: "Unique splat",
+		skipDoc:     true,
+		document:    `[2,1,2]`,
+		expression:  `unique[]`,
+		expected: []string{
+			"D0, P[0], (!!int)::2\n",
+			"D0, P[1], (!!int)::1\n",
+		},
+	},
+	{
 		description:    "Unique nulls",
 		subdescription: "Unique works on the node value, so it considers different representations of nulls to be different",
 		document:       `[~,null, ~, null]`,
@@ -33,11 +43,27 @@ var uniqueOperatorScenarios = []expressionScenario{
 		},
 	},
 	{
-		description: "Unique array object fields",
+		description: "Unique array objects",
+		document:    `[{name: harry, pet: cat}, {name: billy, pet: dog}, {name: harry, pet: cat}]`,
+		expression:  `unique`,
+		expected: []string{
+			"D0, P[], (!!seq)::[{name: harry, pet: cat}, {name: billy, pet: dog}]\n",
+		},
+	},
+	{
+		description: "Unique array of objects by a field",
 		document:    `[{name: harry, pet: cat}, {name: billy, pet: dog}, {name: harry, pet: dog}]`,
 		expression:  `unique_by(.name)`,
 		expected: []string{
 			"D0, P[], (!!seq)::[{name: harry, pet: cat}, {name: billy, pet: dog}]\n",
+		},
+	},
+	{
+		description: "Unique array of arrays",
+		document:    `[[cat,dog], [cat, sheep], [cat,dog]]`,
+		expression:  `unique`,
+		expected: []string{
+			"D0, P[], (!!seq)::[[cat, dog], [cat, sheep]]\n",
 		},
 	},
 	{
@@ -46,6 +72,16 @@ var uniqueOperatorScenarios = []expressionScenario{
 		expression: `unique_by(.name)`,
 		expected: []string{
 			"D0, P[], (!!seq)::[{name: harry, pet: cat}, {pet: fish}]\n",
+		},
+	},
+	{
+		description: "unique by splat",
+		skipDoc:     true,
+		document:    `[{name: harry, pet: cat}, {pet: fish}, {name: harry, pet: dog}]`,
+		expression:  `unique_by(.name)[]`,
+		expected: []string{
+			"D0, P[0], (!!map)::{name: harry, pet: cat}\n",
+			"D0, P[1], (!!map)::{pet: fish}\n",
 		},
 	},
 	{

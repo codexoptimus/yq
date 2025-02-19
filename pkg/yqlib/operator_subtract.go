@@ -23,7 +23,7 @@ func subtractOperator(d *dataTreeNavigator, context Context, expressionNode *Exp
 	return crossFunction(d, context.ReadOnlyClone(), expressionNode, subtract, false)
 }
 
-func subtractArray(lhs *CandidateNode, rhs *CandidateNode) (*CandidateNode, error) {
+func subtractArray(lhs *CandidateNode, rhs *CandidateNode) []*CandidateNode {
 	newLHSArray := make([]*CandidateNode, 0)
 
 	for lindex := 0; lindex < len(lhs.Content); lindex = lindex + 1 {
@@ -37,12 +37,10 @@ func subtractArray(lhs *CandidateNode, rhs *CandidateNode) (*CandidateNode, erro
 			newLHSArray = append(newLHSArray, lhs.Content[lindex])
 		}
 	}
-	// removing children from LHS, parent hasn't changed
-	lhs.Content = newLHSArray
-	return lhs, nil
+	return newLHSArray
 }
 
-func subtract(d *dataTreeNavigator, context Context, lhs *CandidateNode, rhs *CandidateNode) (*CandidateNode, error) {
+func subtract(_ *dataTreeNavigator, context Context, lhs *CandidateNode, rhs *CandidateNode) (*CandidateNode, error) {
 	if lhs.Tag == "!!null" {
 		return lhs.CopyAsReplacement(rhs), nil
 	}
@@ -56,7 +54,7 @@ func subtract(d *dataTreeNavigator, context Context, lhs *CandidateNode, rhs *Ca
 		if rhs.Kind != SequenceNode {
 			return nil, fmt.Errorf("%v (%v) cannot be subtracted from %v", rhs.Tag, rhs.GetNicePath(), lhs.Tag)
 		}
-		return subtractArray(lhs, rhs)
+		target.Content = subtractArray(lhs, rhs)
 	case ScalarNode:
 		if rhs.Kind != ScalarNode {
 			return nil, fmt.Errorf("%v (%v) cannot be subtracted from %v", rhs.Tag, rhs.GetNicePath(), lhs.Tag)

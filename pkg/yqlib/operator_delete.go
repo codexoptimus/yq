@@ -61,7 +61,7 @@ func deleteFromMap(node *CandidateNode, childPath interface{}) {
 
 		shouldDelete := key.Value == childPath
 
-		log.Debugf("shouldDelete %v ? %v", NodeToString(value), shouldDelete)
+		log.Debugf("shouldDelete %v? %v == %v = %v", NodeToString(value), key.Value, childPath, shouldDelete)
 
 		if !shouldDelete {
 			newContents = append(newContents, key, value)
@@ -81,6 +81,7 @@ func deleteFromArray(node *CandidateNode, childPath interface{}) {
 		shouldDelete := fmt.Sprintf("%v", index) == fmt.Sprintf("%v", childPath)
 
 		if !shouldDelete {
+			value.Key.Value = fmt.Sprintf("%v", len(newContents))
 			newContents = append(newContents, value)
 		}
 	}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"regexp"
 )
 
@@ -22,7 +23,7 @@ func NewSinglePrinterWriter(writer io.Writer) PrinterWriter {
 	}
 }
 
-func (sp *singlePrinterWriter) GetWriter(node *CandidateNode) (*bufio.Writer, error) {
+func (sp *singlePrinterWriter) GetWriter(_ *CandidateNode) (*bufio.Writer, error) {
 	return sp.bufferedWriter, nil
 }
 
@@ -33,13 +34,13 @@ type multiPrintWriter struct {
 	index          int
 }
 
-func NewMultiPrinterWriter(expression *ExpressionNode, format PrinterOutputFormat) PrinterWriter {
+func NewMultiPrinterWriter(expression *ExpressionNode, format *Format) PrinterWriter {
 	extension := "yml"
 
 	switch format {
-	case JSONOutputFormat:
+	case JSONFormat:
 		extension = "json"
-	case PropsOutputFormat:
+	case PropertiesFormat:
 		extension = "properties"
 	}
 
@@ -70,6 +71,10 @@ func (sp *multiPrintWriter) GetWriter(node *CandidateNode) (*bufio.Writer, error
 		name = fmt.Sprintf("%v.%v", name, sp.extension)
 	}
 
+	err = os.MkdirAll(filepath.Dir(name), 0750)
+	if err != nil {
+		return nil, err
+	}
 	f, err := os.Create(name)
 
 	if err != nil {

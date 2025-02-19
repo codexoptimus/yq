@@ -8,6 +8,18 @@ import (
 
 var yamlFormatScenarios = []formatScenario{
 	{
+		description: "scalar with doc separator",
+		skipDoc:     true,
+		input:       "--- cat",
+		expected:    "---\ncat\n",
+	},
+	{
+		description: "scalar with doc separator",
+		skipDoc:     true,
+		input:       "---cat",
+		expected:    "---cat\n",
+	},
+	{
 		description: "basic - null",
 		skipDoc:     true,
 		input:       "null",
@@ -31,6 +43,13 @@ var yamlFormatScenarios = []formatScenario{
 		skipDoc:     true,
 		input:       "[null]",
 		expected:    "[null]\n",
+	},
+	{
+		description: "multi document anchor map",
+		skipDoc:     true,
+		input:       "a: &remember mike\n---\nb: *remember",
+		expression:  "explode(.)",
+		expected:    "a: mike\n---\nb: mike\n",
 	},
 	{
 		description: "basic - [~]",
@@ -93,7 +112,7 @@ var yamlParseScenarios = []expressionScenario{
 }
 
 func testYamlScenario(t *testing.T, s formatScenario) {
-	test.AssertResultWithContext(t, s.expected, mustProcessFormatScenario(s, NewYamlDecoder(NewDefaultYamlPreferences()), NewYamlEncoder(2, false, ConfiguredYamlPreferences)), s.description)
+	test.AssertResultWithContext(t, s.expected, mustProcessFormatScenario(s, NewYamlDecoder(ConfiguredYamlPreferences), NewYamlEncoder(ConfiguredYamlPreferences)), s.description)
 }
 
 func TestYamlParseScenarios(t *testing.T) {

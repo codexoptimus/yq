@@ -16,6 +16,19 @@ name = "Tom Preston-Werner"
 age = 36
 `
 
+var tableArrayBeforeOwners = `
+[[owner.addresses]]
+street = "first street"
+
+[owner]
+name = "Tom Preston-Werner"
+`
+var expectedTableArrayBeforeOwners = `owner:
+  addresses:
+    - street: first street
+  name: Tom Preston-Werner
+`
+
 var sampleTableExpected = `var: x
 owner:
   contact:
@@ -48,6 +61,12 @@ var sampleArrayTableExpected = `owner:
       suburb: nice
 `
 
+var emptyTable = `
+[dependencies]
+`
+
+var emptyTableExpected = "dependencies: {}\n"
+
 var sampleWithHeader = `
 [servers]
 
@@ -66,6 +85,13 @@ var tomlScenarios = []formatScenario{
 		description:  "blank",
 		input:        "",
 		expected:     "",
+		scenarioType: "decode",
+	},
+	{
+		skipDoc:      true,
+		description:  "table array before owners",
+		input:        tableArrayBeforeOwners,
+		expected:     expectedTableArrayBeforeOwners,
 		scenarioType: "decode",
 	},
 	{
@@ -200,6 +226,12 @@ var tomlScenarios = []formatScenario{
 		scenarioType: "decode",
 	},
 	{
+		description:  "Parse: Empty Table",
+		input:        emptyTable,
+		expected:     emptyTableExpected,
+		scenarioType: "decode",
+	},
+	{
 		description:  "Parse: with header",
 		skipDoc:      true,
 		input:        sampleWithHeader,
@@ -211,9 +243,9 @@ var tomlScenarios = []formatScenario{
 func testTomlScenario(t *testing.T, s formatScenario) {
 	switch s.scenarioType {
 	case "", "decode":
-		test.AssertResultWithContext(t, s.expected, mustProcessFormatScenario(s, NewTomlDecoder(), NewYamlEncoder(2, false, ConfiguredYamlPreferences)), s.description)
+		test.AssertResultWithContext(t, s.expected, mustProcessFormatScenario(s, NewTomlDecoder(), NewYamlEncoder(ConfiguredYamlPreferences)), s.description)
 	case "decode-error":
-		result, err := processFormatScenario(s, NewTomlDecoder(), NewYamlEncoder(2, false, ConfiguredYamlPreferences))
+		result, err := processFormatScenario(s, NewTomlDecoder(), NewYamlEncoder(ConfiguredYamlPreferences))
 		if err == nil {
 			t.Errorf("Expected error '%v' but it worked: %v", s.expectedError, result)
 		} else {
@@ -243,7 +275,7 @@ func documentTomlDecodeScenario(w *bufio.Writer, s formatScenario) {
 	writeOrPanic(w, fmt.Sprintf("```bash\nyq -oy '%v' sample.toml\n```\n", expression))
 	writeOrPanic(w, "will output\n")
 
-	writeOrPanic(w, fmt.Sprintf("```yaml\n%v```\n\n", mustProcessFormatScenario(s, NewTomlDecoder(), NewYamlEncoder(2, false, ConfiguredYamlPreferences))))
+	writeOrPanic(w, fmt.Sprintf("```yaml\n%v```\n\n", mustProcessFormatScenario(s, NewTomlDecoder(), NewYamlEncoder(ConfiguredYamlPreferences))))
 }
 
 func documentTomlRoundtripScenario(w *bufio.Writer, s formatScenario) {
@@ -268,7 +300,7 @@ func documentTomlRoundtripScenario(w *bufio.Writer, s formatScenario) {
 	writeOrPanic(w, fmt.Sprintf("```yaml\n%v```\n\n", mustProcessFormatScenario(s, NewTomlDecoder(), NewTomlEncoder())))
 }
 
-func documentTomlScenario(t *testing.T, w *bufio.Writer, i interface{}) {
+func documentTomlScenario(_ *testing.T, w *bufio.Writer, i interface{}) {
 	s := i.(formatScenario)
 
 	if s.skipDoc {

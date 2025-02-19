@@ -6,6 +6,25 @@ import (
 
 var entriesOperatorScenarios = []expressionScenario{
 	{
+		description: "to_entries splat",
+		skipDoc:     true,
+		document:    `{a: 1, b: 2}`,
+		expression:  `to_entries[]`,
+		expected: []string{
+			"D0, P[0], (!!map)::key: a\nvalue: 1\n",
+			"D0, P[1], (!!map)::key: b\nvalue: 2\n",
+		},
+	},
+	{
+		description: "to_entries, delete key",
+		skipDoc:     true,
+		document:    `{a: 1, b: 2}`,
+		expression:  `to_entries | map(del(.key))`,
+		expected: []string{
+			"D0, P[], (!!seq)::- value: 1\n- value: 2\n",
+		},
+	},
+	{
 		description: "to_entries Map",
 		document:    `{a: 1, b: 2}`,
 		expression:  `to_entries`,
@@ -47,9 +66,19 @@ var entriesOperatorScenarios = []expressionScenario{
 	{
 		description: "Use with_entries to update keys",
 		document:    `{a: 1, b: 2}`,
-		expression:  `with_entries(.key |= "KEY_" + .)`,
+		// expression:  `to_entries | with(.[]; .key |= "KEY_" + .) | from_entries`,
+		expression: `with_entries(.key |= "KEY_" + .)`,
 		expected: []string{
 			"D0, P[], (!!map)::KEY_a: 1\nKEY_b: 2\n",
+		},
+	},
+	{
+		skipDoc:     true,
+		description: "Use with_entries to update keys comment",
+		document:    `{a: 1, b: 2}`,
+		expression:  `with_entries(.key headComment= .value)`,
+		expected: []string{
+			"D0, P[], (!!map)::# 1\na: 1\n# 2\nb: 2\n",
 		},
 	},
 	{

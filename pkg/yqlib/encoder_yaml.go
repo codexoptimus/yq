@@ -8,20 +8,16 @@ import (
 	"regexp"
 	"strings"
 
-	yaml "gopkg.in/yaml.v3"
+	"github.com/fatih/color"
+	"gopkg.in/yaml.v3"
 )
 
 type yamlEncoder struct {
-	indent   int
-	colorise bool
-	prefs    YamlPreferences
+	prefs YamlPreferences
 }
 
-func NewYamlEncoder(indent int, colorise bool, prefs YamlPreferences) Encoder {
-	if indent < 0 {
-		indent = 0
-	}
-	return &yamlEncoder{indent, colorise, prefs}
+func NewYamlEncoder(prefs YamlPreferences) Encoder {
+	return &yamlEncoder{prefs}
 }
 
 func (ye *yamlEncoder) CanHandleAliases() bool {
@@ -30,7 +26,7 @@ func (ye *yamlEncoder) CanHandleAliases() bool {
 
 func (ye *yamlEncoder) PrintDocumentSeparator(writer io.Writer) error {
 	if ye.prefs.PrintDocSeparators {
-		log.Debug("-- writing doc sep")
+		log.Debug("writing doc sep")
 		if err := writeString(writer, "---\n"); err != nil {
 			return err
 		}
@@ -58,6 +54,9 @@ func (ye *yamlEncoder) PrintLeadingContent(writer io.Writer, content string) err
 		} else {
 			if len(readline) > 0 && readline != "\n" && readline[0] != '%' && !commentLineRegEx.MatchString(readline) {
 				readline = "# " + readline
+			}
+			if ye.prefs.ColorsEnabled && strings.TrimSpace(readline) != "" {
+				readline = format(color.FgHiBlack) + readline + format(color.Reset)
 			}
 			if err := writeString(writer, readline); err != nil {
 				return err
@@ -90,13 +89,13 @@ func (ye *yamlEncoder) Encode(writer io.Writer, node *CandidateNode) error {
 
 	destination := writer
 	tempBuffer := bytes.NewBuffer(nil)
-	if ye.colorise {
+	if ye.prefs.ColorsEnabled {
 		destination = tempBuffer
 	}
 
 	var encoder = yaml.NewEncoder(destination)
 
-	encoder.SetIndent(ye.indent)
+	encoder.SetIndent(ye.prefs.Indent)
 
 	target, err := node.MarshalYAML()
 
@@ -115,7 +114,7 @@ func (ye *yamlEncoder) Encode(writer io.Writer, node *CandidateNode) error {
 		return err
 	}
 
-	if ye.colorise {
+	if ye.prefs.ColorsEnabled {
 		return colorizeAndPrint(tempBuffer.Bytes(), writer)
 	}
 	return nil

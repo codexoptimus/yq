@@ -1,2 +1,3 @@
-a: #things
-  meow
+Foo: 3
+apple: 1
+bar: 2

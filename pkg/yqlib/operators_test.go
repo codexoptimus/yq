@@ -33,6 +33,8 @@ type expressionScenario struct {
 
 func TestMain(m *testing.M) {
 	logging.SetLevel(logging.ERROR, "")
+	ConfiguredYamlPreferences.ColorsEnabled = false
+	ConfiguredJSONPreferences.ColorsEnabled = false
 	Now = func() time.Time {
 		return time.Date(2021, time.May, 19, 1, 2, 3, 4, time.UTC)
 	}
@@ -40,11 +42,12 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-func NewSimpleYamlPrinter(writer io.Writer, outputFormat PrinterOutputFormat, unwrapScalar bool, colorsEnabled bool, indent int, printDocSeparators bool) Printer {
-	prefs := NewDefaultYamlPreferences()
+func NewSimpleYamlPrinter(writer io.Writer, unwrapScalar bool, indent int, printDocSeparators bool) Printer {
+	prefs := ConfiguredYamlPreferences.Copy()
 	prefs.PrintDocSeparators = printDocSeparators
 	prefs.UnwrapScalar = unwrapScalar
-	return NewPrinter(NewYamlEncoder(indent, colorsEnabled, prefs), NewSinglePrinterWriter(writer))
+	prefs.Indent = indent
+	return NewPrinter(NewYamlEncoder(prefs), NewSinglePrinterWriter(writer))
 }
 
 func readDocument(content string, fakefilename string, fakeFileIndex int) (*list.List, error) {
@@ -107,14 +110,14 @@ func testScenario(t *testing.T, s *expressionScenario) {
 
 	if s.requiresFormat != "" {
 		format := s.requiresFormat
-		inputFormat, err := InputFormatFromString(format)
+		inputFormat, err := FormatFromString(format)
 		if err != nil {
 			t.Error(err)
 		}
-		if decoder := createDecoder(inputFormat); decoder == nil {
+		if decoder := inputFormat.DecoderFactory(); decoder == nil {
 			t.Skipf("no support for %s input format", format)
 		}
-		outputFormat, err := OutputFormatFromString(format)
+		outputFormat, err := FormatFromString(format)
 		if err != nil {
 			t.Error(err)
 		}
@@ -132,7 +135,7 @@ func testScenario(t *testing.T, s *expressionScenario) {
 func resultToString(t *testing.T, n *CandidateNode) string {
 	var valueBuffer bytes.Buffer
 	log.Debugf("printing result %v", NodeToString(n))
-	printer := NewSimpleYamlPrinter(bufio.NewWriter(&valueBuffer), YamlOutputFormat, true, false, 4, true)
+	printer := NewSimpleYamlPrinter(bufio.NewWriter(&valueBuffer), true, 4, true)
 
 	err := printer.PrintResults(n.AsList())
 	if err != nil {
@@ -182,7 +185,7 @@ func copySnippet(source string, out *os.File) error {
 
 func formatYaml(yaml string, filename string) string {
 	var output bytes.Buffer
-	printer := NewSimpleYamlPrinter(bufio.NewWriter(&output), YamlOutputFormat, true, false, 2, true)
+	printer := NewSimpleYamlPrinter(bufio.NewWriter(&output), true, 2, true)
 
 	node, err := getExpressionParser().ParseExpression(".. style= \"\"")
 	if err != nil {
@@ -317,7 +320,7 @@ func documentInput(w *bufio.Writer, s expressionScenario) (string, string) {
 		writeOrPanic(w, "then\n")
 
 		if s.expression != "" {
-			writeOrPanic(w, fmt.Sprintf("```bash\n%vyq %v'%v' %v\n```\n", envCommand, command, s.expression, files))
+			writeOrPanic(w, fmt.Sprintf("```bash\n%vyq %v'%v' %v\n```\n", envCommand, command, strings.ReplaceAll(s.expression, "'", `'\''`), files))
 		} else {
 			writeOrPanic(w, fmt.Sprintf("```bash\n%vyq %v%v\n```\n", envCommand, command, files))
 		}
@@ -331,7 +334,7 @@ func documentInput(w *bufio.Writer, s expressionScenario) (string, string) {
 func documentOutput(t *testing.T, w *bufio.Writer, s expressionScenario, formattedDoc string, formattedDoc2 string) {
 	var output bytes.Buffer
 	var err error
-	printer := NewSimpleYamlPrinter(bufio.NewWriter(&output), YamlOutputFormat, true, false, 2, true)
+	printer := NewSimpleYamlPrinter(bufio.NewWriter(&output), true, 2, true)
 
 	node, err := getExpressionParser().ParseExpression(s.expression)
 	if err != nil {

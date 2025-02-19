@@ -20,6 +20,9 @@ type yamlDecoder struct {
 	leadingContent string
 	bufferRead     bytes.Buffer
 
+	// anchor map persists over multiple documents for convenience.
+	anchorMap map[string]*CandidateNode
+
 	readAnything  bool
 	firstFile     bool
 	documentIndex uint
@@ -34,7 +37,7 @@ func (dec *yamlDecoder) processReadStream(reader *bufio.Reader) (io.Reader, stri
 	var yamlDirectiveLineRegEx = regexp.MustCompile(`^\s*%YA`)
 	var sb strings.Builder
 	for {
-		peekBytes, err := reader.Peek(3)
+		peekBytes, err := reader.Peek(4)
 		if errors.Is(err, io.EOF) {
 			// EOF are handled else where..
 			return reader, sb.String(), nil
@@ -48,7 +51,15 @@ func (dec *yamlDecoder) processReadStream(reader *bufio.Reader) (io.Reader, stri
 			} else if err != nil {
 				return reader, sb.String(), err
 			}
-		} else if string(peekBytes) == "---" {
+		} else if string(peekBytes) == "--- " {
+			_, err := reader.ReadString(' ')
+			sb.WriteString("$yqDocSeparator$\n")
+			if errors.Is(err, io.EOF) {
+				return reader, sb.String(), nil
+			} else if err != nil {
+				return reader, sb.String(), err
+			}
+		} else if string(peekBytes) == "---\n" {
 			_, err := reader.ReadString('\n')
 			sb.WriteString("$yqDocSeparator$\n")
 			if errors.Is(err, io.EOF) {
@@ -95,6 +106,7 @@ func (dec *yamlDecoder) Init(reader io.Reader) error {
 	dec.decoder = *yaml.NewDecoder(readerToUse)
 	dec.firstFile = false
 	dec.documentIndex = 0
+	dec.anchorMap = make(map[string]*CandidateNode)
 	return nil
 }
 
@@ -121,7 +133,7 @@ func (dec *yamlDecoder) Decode() (*CandidateNode, error) {
 
 	candidateNode := CandidateNode{document: dec.documentIndex}
 	// don't bother with the DocumentNode
-	err = candidateNode.UnmarshalYAML(yamlNode.Content[0], make(map[string]*CandidateNode))
+	err = candidateNode.UnmarshalYAML(yamlNode.Content[0], dec.anchorMap)
 	if err != nil {
 		return nil, err
 	}

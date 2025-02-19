@@ -55,6 +55,8 @@ person: # neither do comments on maps
     name: Mike Wazowski # comments on values appear
     pets: 
     - cat # comments on array values appear
+    - nested:
+        - list entry
     food: [pizza] # comments on arrays do not
 emptyArray: []
 emptyMap: []
@@ -66,7 +68,28 @@ person.name = Mike Wazowski
 
 # comments on array values appear
 person.pets.0 = cat
+person.pets.1.nested.0 = list entry
 person.food.0 = pizza
+`
+
+const expectedPropertiesUnwrappedArrayBrackets = `# block comments come through
+# comments on values appear
+person.name = Mike Wazowski
+
+# comments on array values appear
+person.pets[0] = cat
+person.pets[1].nested[0] = list entry
+person.food[0] = pizza
+`
+
+const expectedPropertiesUnwrappedCustomSeparator = `# block comments come through
+# comments on values appear
+person.name :@ Mike Wazowski
+
+# comments on array values appear
+person.pets.0 :@ cat
+person.pets.1.nested.0 :@ list entry
+person.food.0 :@ pizza
 `
 
 const expectedPropertiesWrapped = `# block comments come through
@@ -75,6 +98,7 @@ person.name = "Mike Wazowski"
 
 # comments on array values appear
 person.pets.0 = cat
+person.pets.1.nested.0 = "list entry"
 person.food.0 = pizza
 `
 
@@ -84,6 +108,7 @@ person.name = Mike Wazowski
 
 # comments on array values appear
 person.pets.0 = dog
+person.pets.1.nested.0 = list entry
 person.food.0 = pizza
 `
 
@@ -94,6 +119,8 @@ const expectedDecodedYaml = `person:
   pets:
     # comments on array values appear
     - cat
+    - nested:
+        - list entry
   food:
     - pizza
 `
@@ -104,12 +131,15 @@ name: Mike Wazowski
 pets:
   # comments on array values appear
   - cat
+  - nested:
+      - list entry
 food:
   - pizza
 `
 
 const expectedPropertiesNoComments = `person.name = Mike Wazowski
 person.pets.0 = cat
+person.pets.1.nested.0 = list entry
 person.food.0 = pizza
 `
 
@@ -119,6 +149,7 @@ person.name = Mike Wazowski
 
 # comments on array values appear
 person.pets.0 = cat
+person.pets.1.nested.0 = list entry
 person.food.0 = pizza
 emptyArray = 
 emptyMap = 
@@ -130,6 +161,20 @@ var propertyScenarios = []formatScenario{
 		subdescription: "Note that empty arrays and maps are not encoded by default.",
 		input:          samplePropertiesYaml,
 		expected:       expectedPropertiesUnwrapped,
+	},
+	{
+		description:    "Encode properties with array brackets",
+		subdescription: "Declare the --properties-array-brackets flag to give array paths in brackets (e.g. SpringBoot).",
+		input:          samplePropertiesYaml,
+		expected:       expectedPropertiesUnwrappedArrayBrackets,
+		scenarioType:   "encode-array-brackets",
+	},
+	{
+		description:    "Encode properties - custom separator",
+		subdescription: "Use the --properties-separator flag to specify your own key/value separator.",
+		input:          samplePropertiesYaml,
+		expected:       expectedPropertiesUnwrappedCustomSeparator,
+		scenarioType:   "encode-custom-separator",
 	},
 	{
 		description:    "Encode properties: scalar encapsulation",
@@ -182,7 +227,14 @@ var propertyScenarios = []formatScenario{
 		expected:     "- person\n- name\n",
 		scenarioType: "decode",
 	},
-
+	{
+		description:    "Decode properties: numbers",
+		subdescription: "All values are assumed to be strings when parsing properties, but you can use the `from_yaml` operator on all the strings values to autoparse into the correct type.",
+		input:          "a.b = 10",
+		expression:     " (.. | select(tag == \"!!str\")) |= from_yaml",
+		expected:       "a:\n  b: 10\n",
+		scenarioType:   "decode",
+	},
 	{
 		description:    "Decode properties - array should be a map",
 		subdescription: "If you have a numeric map key in your property files, use array_to_map to convert them to maps.",
@@ -264,15 +316,26 @@ func documentUnwrappedEncodePropertyScenario(w *bufio.Writer, s formatScenario) 
 	writeOrPanic(w, "then\n")
 
 	expression := s.expression
+	prefs := NewDefaultPropertiesPreferences()
+	useArrayBracketsFlag := ""
+	useCustomSeparatorFlag := ""
+	if s.scenarioType == "encode-array-brackets" {
+		useArrayBracketsFlag = " --properties-array-brackets"
+		prefs.UseArrayBrackets = true
+	} else if s.scenarioType == "encode-custom-separator" {
+		prefs.KeyValueSeparator = " :@ "
+		useCustomSeparatorFlag = ` --properties-separator=" :@ "`
+	}
 
 	if expression != "" {
-		writeOrPanic(w, fmt.Sprintf("```bash\nyq -o=props '%v' sample.yml\n```\n", expression))
+		writeOrPanic(w, fmt.Sprintf("```bash\nyq -o=props%v%v '%v' sample.yml\n```\n", useArrayBracketsFlag, useCustomSeparatorFlag, expression))
 	} else {
-		writeOrPanic(w, "```bash\nyq -o=props sample.yml\n```\n")
+		writeOrPanic(w, fmt.Sprintf("```bash\nyq -o=props%v%v sample.yml\n```\n", useArrayBracketsFlag, useCustomSeparatorFlag))
 	}
 	writeOrPanic(w, "will output\n")
+	prefs.UnwrapScalar = true
 
-	writeOrPanic(w, fmt.Sprintf("```properties\n%v```\n\n", mustProcessFormatScenario(s, NewYamlDecoder(ConfiguredYamlPreferences), NewPropertiesEncoder(true))))
+	writeOrPanic(w, fmt.Sprintf("```properties\n%v```\n\n", mustProcessFormatScenario(s, NewYamlDecoder(ConfiguredYamlPreferences), NewPropertiesEncoder(prefs))))
 }
 
 func documentWrappedEncodePropertyScenario(w *bufio.Writer, s formatScenario) {
@@ -296,8 +359,9 @@ func documentWrappedEncodePropertyScenario(w *bufio.Writer, s formatScenario) {
 		writeOrPanic(w, "```bash\nyq -o=props --unwrapScalar=false sample.yml\n```\n")
 	}
 	writeOrPanic(w, "will output\n")
-
-	writeOrPanic(w, fmt.Sprintf("```properties\n%v```\n\n", mustProcessFormatScenario(s, NewYamlDecoder(ConfiguredYamlPreferences), NewPropertiesEncoder(false))))
+	prefs := ConfiguredPropertiesPreferences.Copy()
+	prefs.UnwrapScalar = false
+	writeOrPanic(w, fmt.Sprintf("```properties\n%v```\n\n", mustProcessFormatScenario(s, NewYamlDecoder(ConfiguredYamlPreferences), NewPropertiesEncoder(prefs))))
 }
 
 func documentDecodePropertyScenario(w *bufio.Writer, s formatScenario) {
@@ -322,7 +386,7 @@ func documentDecodePropertyScenario(w *bufio.Writer, s formatScenario) {
 
 	writeOrPanic(w, "will output\n")
 
-	writeOrPanic(w, fmt.Sprintf("```yaml\n%v```\n\n", mustProcessFormatScenario(s, NewPropertiesDecoder(), NewYamlEncoder(s.indent, false, ConfiguredYamlPreferences))))
+	writeOrPanic(w, fmt.Sprintf("```yaml\n%v```\n\n", mustProcessFormatScenario(s, NewPropertiesDecoder(), NewYamlEncoder(ConfiguredYamlPreferences))))
 }
 
 func documentRoundTripPropertyScenario(w *bufio.Writer, s formatScenario) {
@@ -347,16 +411,16 @@ func documentRoundTripPropertyScenario(w *bufio.Writer, s formatScenario) {
 
 	writeOrPanic(w, "will output\n")
 
-	writeOrPanic(w, fmt.Sprintf("```properties\n%v```\n\n", mustProcessFormatScenario(s, NewPropertiesDecoder(), NewPropertiesEncoder(true))))
+	writeOrPanic(w, fmt.Sprintf("```properties\n%v```\n\n", mustProcessFormatScenario(s, NewPropertiesDecoder(), NewPropertiesEncoder(ConfiguredPropertiesPreferences))))
 }
 
-func documentPropertyScenario(t *testing.T, w *bufio.Writer, i interface{}) {
+func documentPropertyScenario(_ *testing.T, w *bufio.Writer, i interface{}) {
 	s := i.(formatScenario)
 	if s.skipDoc {
 		return
 	}
 	switch s.scenarioType {
-	case "":
+	case "", "encode-array-brackets", "encode-custom-separator":
 		documentUnwrappedEncodePropertyScenario(w, s)
 	case "decode":
 		documentDecodePropertyScenario(w, s)
@@ -374,13 +438,24 @@ func TestPropertyScenarios(t *testing.T) {
 	for _, s := range propertyScenarios {
 		switch s.scenarioType {
 		case "":
-			test.AssertResultWithContext(t, s.expected, mustProcessFormatScenario(s, NewYamlDecoder(ConfiguredYamlPreferences), NewPropertiesEncoder(true)), s.description)
+			test.AssertResultWithContext(t, s.expected, mustProcessFormatScenario(s, NewYamlDecoder(ConfiguredYamlPreferences), NewPropertiesEncoder(ConfiguredPropertiesPreferences)), s.description)
 		case "decode":
-			test.AssertResultWithContext(t, s.expected, mustProcessFormatScenario(s, NewPropertiesDecoder(), NewYamlEncoder(2, false, ConfiguredYamlPreferences)), s.description)
+			test.AssertResultWithContext(t, s.expected, mustProcessFormatScenario(s, NewPropertiesDecoder(), NewYamlEncoder(ConfiguredYamlPreferences)), s.description)
 		case "encode-wrapped":
-			test.AssertResultWithContext(t, s.expected, mustProcessFormatScenario(s, NewYamlDecoder(ConfiguredYamlPreferences), NewPropertiesEncoder(false)), s.description)
+			prefs := ConfiguredPropertiesPreferences.Copy()
+			prefs.UnwrapScalar = false
+			test.AssertResultWithContext(t, s.expected, mustProcessFormatScenario(s, NewYamlDecoder(ConfiguredYamlPreferences), NewPropertiesEncoder(prefs)), s.description)
+		case "encode-array-brackets":
+			prefs := ConfiguredPropertiesPreferences.Copy()
+			prefs.KeyValueSeparator = " = "
+			prefs.UseArrayBrackets = true
+			test.AssertResultWithContext(t, s.expected, mustProcessFormatScenario(s, NewYamlDecoder(ConfiguredYamlPreferences), NewPropertiesEncoder(prefs)), s.description)
+		case "encode-custom-separator":
+			prefs := ConfiguredPropertiesPreferences.Copy()
+			prefs.KeyValueSeparator = " :@ "
+			test.AssertResultWithContext(t, s.expected, mustProcessFormatScenario(s, NewYamlDecoder(ConfiguredYamlPreferences), NewPropertiesEncoder(prefs)), s.description)
 		case "roundtrip":
-			test.AssertResultWithContext(t, s.expected, mustProcessFormatScenario(s, NewPropertiesDecoder(), NewPropertiesEncoder(true)), s.description)
+			test.AssertResultWithContext(t, s.expected, mustProcessFormatScenario(s, NewPropertiesDecoder(), NewPropertiesEncoder(ConfiguredPropertiesPreferences)), s.description)
 
 		default:
 			panic(fmt.Sprintf("unhandled scenario type %q", s.scenarioType))

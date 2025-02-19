@@ -7,7 +7,7 @@ import (
 )
 
 func tryConvertToNumber(value string) (string, bool) {
-	// try a int first
+	// try an int first
 	_, _, err := parseInt64(value)
 	if err == nil {
 		return "!!int", true
@@ -22,7 +22,7 @@ func tryConvertToNumber(value string) (string, bool) {
 
 }
 
-func toNumberOperator(d *dataTreeNavigator, context Context, expressionNode *ExpressionNode) (Context, error) {
+func toNumberOperator(_ *dataTreeNavigator, context Context, _ *ExpressionNode) (Context, error) {
 	log.Debugf("ToNumberOperator")
 
 	var results = list.New()

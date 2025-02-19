@@ -37,6 +37,24 @@ steps:
 var traversePathOperatorScenarios = []expressionScenario{
 	{
 		skipDoc:     true,
+		description: "strange map with key but no value",
+		document:    "!!null\n-",
+		expression:  ".x",
+		expected: []string{
+			"D0, P[x], (!!null)::null\n",
+		},
+	},
+	{
+		skipDoc:     true,
+		description: "access merge anchors",
+		document:    "foo: &foo {x: y}\nbar:\n  <<: *foo\n",
+		expression:  `.bar["<<"] | alias`,
+		expected: []string{
+			"D0, P[bar <<], (!!str)::foo\n",
+		},
+	},
+	{
+		skipDoc:     true,
 		description: "dynamically set parent and key",
 		expression:  `.a.b.c = 3 | .a.b.c`,
 		expected: []string{

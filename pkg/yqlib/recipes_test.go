@@ -4,6 +4,25 @@ import (
 	"testing"
 )
 
+var bashEnvScript = `.[] |(
+	( select(kind == "scalar") | key + "='" + . + "'"),
+	( select(kind == "seq") | key + "=(" + (map("'" + . + "'") | join(",")) + ")")
+)`
+
+var nestedBashEnvScript = `.. |(
+	( select(kind == "scalar" and parent | kind != "seq") | (path | join("_")) + "='" + . + "'"),
+	( select(kind == "seq") | (path | join("_")) + "=(" + (map("'" + . + "'") | join(",")) + ")")
+)`
+
+var deepPruneExpression = `(
+  .. | # recurse through all the nodes
+  select(has("child1") or has("child2")) | # match parents that have either child1 or child2
+  (.child1, .child2) | # select those children
+  select(.) # filter out nulls
+) as $i ireduce({};  # using that set of nodes, create a new result map
+  setpath($i | path; $i) # and put in each node, using its original path
+)`
+
 var recipes = []expressionScenario{
 	{
 		description:    "Find items in an array",
@@ -37,6 +56,20 @@ var recipes = []expressionScenario{
 		},
 	},
 	{
+		description:    "Deeply prune a tree",
+		subdescription: "Say we are only interested in child1 and child2, and want to filter everything else out.",
+		document:       `{parentA: [bob],parentB: {child1: i am child1, child3: hiya},parentC: {childX: "cool",child2: me child2}}`,
+		expression:     deepPruneExpression,
+		explanation: []string{
+			"Find all the matching child1 and child2 nodes",
+			"Using ireduce, create a new map using just those nodes",
+			"Set each node into the new map using its original path",
+		},
+		expected: []string{
+			"D0, P[], (!!map)::parentB:\n    child1: i am child1\nparentC:\n    child2: me child2\n",
+		},
+	},
+	{
 		description:    "Multiple or complex updates to items in an array",
 		subdescription: "We have an array and we want to _update_ the elements with a particular name in reference to its type.",
 		document:       `myArray: [{name: Foo, type: cat}, {name: Bar, type: dog}]`,
@@ -66,7 +99,7 @@ var recipes = []expressionScenario{
 	},
 	{
 		description:    "Filter, flatten, sort and unique",
-		subdescription: "Lets",
+		subdescription: "Lets find the unique set of names from the document.",
 		document:       `[{type: foo, names: [Fred, Catherine]}, {type: bar, names: [Zelda]}, {type: foo, names: Fred}, {type: foo, names: Ava}]`,
 		expression:     `[.[] | select(.type == "foo") | .names] | flatten | sort | unique`,
 		explanation: []string{
@@ -80,6 +113,44 @@ var recipes = []expressionScenario{
 		},
 		expected: []string{
 			"D0, P[], (!!seq)::- Ava\n- Catherine\n- Fred\n",
+		},
+	},
+	{
+		description:    "Export as environment variables (script), or any custom format",
+		subdescription: "Given a yaml document, lets output a script that will configure environment variables with that data. This same approach can be used for exporting into custom formats.",
+		document:       "var0: string0\nvar1: string1\nfruit: [apple, banana, peach]\n",
+		expression:     bashEnvScript,
+		expected: []string{
+			"D0, P[var0='string0'], (!!str)::var0='string0'\n",
+			"D0, P[var1='string1'], (!!str)::var1='string1'\n",
+			"D0, P[fruit=('apple','banana','peach')], (!!str)::fruit=('apple','banana','peach')\n",
+		},
+		explanation: []string{
+			"`.[]` matches all top level elements",
+			"We need a string expression for each of the different types that will produce the bash syntax, we'll use the union operator, to join them together",
+			"Scalars, we just need the key and quoted value: `( select(kind == \"scalar\") | key + \"='\" + . + \"'\")`",
+			"Sequences (or arrays) are trickier, we need to quote each value and `join` them with `,`: `map(\"'\" + . + \"'\") | join(\",\")`",
+		},
+	},
+	{
+		description:    "Custom format with nested data",
+		subdescription: "Like the previous example, but lets handle nested data structures. In this custom example, we're going to join the property paths with _. The important thing to keep in mind is that our expression is not recursive (despite the data structure being so). Instead we match _all_ elements on the tree and operate on them.",
+		document:       "simple: string0\nsimpleArray: [apple, banana, peach]\ndeep:\n  property: value\n  array: [cat]\n",
+		expression:     nestedBashEnvScript,
+		expected: []string{
+			"D0, P[simple], (!!str)::simple='string0'\n",
+			"D0, P[deep property], (!!str)::deep_property='value'\n",
+			"D0, P[simpleArray], (!!str)::simpleArray=('apple','banana','peach')\n",
+			"D0, P[deep array], (!!str)::deep_array=('cat')\n",
+		},
+		explanation: []string{
+			"You'll need to understand how the previous example works to understand this extension.",
+			"`..` matches _all_ elements, instead of `.[]` from the previous example that just matches top level elements.",
+			"Like before, we need a string expression for each of the different types that will produce the bash syntax, we'll use the union operator, to join them together",
+			"This time, however, our expression matches every node in the data structure.",
+			"We only want to print scalars that are not in arrays (because we handle the separately), so well add `and parent | kind != \"seq\"` to the select operator expression for scalars",
+			"We don't just want the key any more, we want the full path. So instead of `key` we have `path | join(\"_\")`",
+			"The expression for sequences follows the same logic",
 		},
 	},
 }

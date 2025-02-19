@@ -198,6 +198,29 @@ func (n *CandidateNode) SetParent(parent *CandidateNode) {
 	n.Parent = parent
 }
 
+type ValueVisitor func(*CandidateNode) error
+
+func (n *CandidateNode) VisitValues(visitor ValueVisitor) error {
+	if n.Kind == MappingNode {
+		for i := 1; i < len(n.Content); i = i + 2 {
+			if err := visitor(n.Content[i]); err != nil {
+				return err
+			}
+		}
+	} else if n.Kind == SequenceNode {
+		for i := 0; i < len(n.Content); i = i + 1 {
+			if err := visitor(n.Content[i]); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (n *CandidateNode) CanVisitValues() bool {
+	return n.Kind == MappingNode || n.Kind == SequenceNode
+}
+
 func (n *CandidateNode) AddKeyValueChild(rawKey *CandidateNode, rawValue *CandidateNode) (*CandidateNode, *CandidateNode) {
 	key := rawKey.Copy()
 	key.SetParent(n)
@@ -205,6 +228,7 @@ func (n *CandidateNode) AddKeyValueChild(rawKey *CandidateNode, rawValue *Candid
 
 	value := rawValue.Copy()
 	value.SetParent(n)
+	value.IsMapKey = false // force this, incase we are creating a value from a key
 	value.Key = key
 
 	n.Content = append(n.Content, key, value)
@@ -368,7 +392,10 @@ func (n *CandidateNode) doCopy(cloneContent bool) *CandidateNode {
 
 // updates this candidate from the given candidate node
 func (n *CandidateNode) UpdateFrom(other *CandidateNode, prefs assignPreferences) {
-
+	if n == other {
+		log.Debugf("UpdateFrom, no need to update from myself.")
+		return
+	}
 	// if this is an empty map or empty array, use the style of other node.
 	if (n.Kind != ScalarNode && len(n.Content) == 0) ||
 		// if the tag has changed (e.g. from str to bool)

@@ -31,6 +31,10 @@ NAME=mike yq -i '.a.b[0].c = strenv(NAME)' file.yaml
 
 Merge multiple files
 ```bash
+# merge two files
+yq -n 'load("file1.yaml") * load("file2.yaml")'
+
+# merge using globs:
 # note the use of `ea` to evaluate all the files at once
 # instead of in sequence
 yq ea '. as $item ireduce ({}; . * $item )' path/to/*.yml
@@ -237,6 +241,14 @@ As these are supported by the community :heart: - however, they may be out of da
 _Please note that the Debian package (previously supported by @rmescandon) is no longer maintained. Please use an alternative installation method._
 
 
+### X-CMD
+Checkout `yq` on x-cmd: https://x-cmd.com/mod/yq
+
+- Instant Results: See the output of your yq filter in real-time.
+- Error Handling: Encounter a syntax error? It will display the error message and the results of the closest valid filter
+
+Thanks @edwinjhlee!
+
 ### Nix
 
 ```
@@ -291,13 +303,26 @@ sudo port install yq
 Supported by @herbygillot (https://ports.macports.org/maintainer/github/herbygillot)
 
 ### Alpine Linux
-- Enable edge/community repo by adding ```$MIRROR/alpine/edge/community``` to ```/etc/apk/repositories```
-- Update database index with ```apk update```
-- Install yq with ```apk add yq```
 
-Supported by Tuan Hoang
-https://pkgs.alpinelinux.org/package/edge/community/x86/yq
+Alpine Linux v3.20+ (and Edge):
+```
+apk add yq-go
+```
 
+Alpine Linux up to v3.19:
+```
+apk add yq
+```
+
+Supported by Tuan Hoang (https://pkgs.alpinelinux.org/packages?name=yq-go)
+
+### Flox:
+
+Flox can be used to install yq on Linux, MacOS, and Windows through WSL.
+
+```
+flox install yq
+```
 
 ## Features
 - [Detailed documentation with many examples](https://mikefarah.gitbook.io/yq/)
@@ -345,7 +370,6 @@ Available Commands:
   eval             (default) Apply the expression to each document in each yaml file in sequence
   eval-all         Loads _all_ yaml documents of _all_ yaml files and runs expression once
   help             Help about any command
-  shell-completion Generate completion script
 
 Flags:
   -C, --colors                        force print with colors

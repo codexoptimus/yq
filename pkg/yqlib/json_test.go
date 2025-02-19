@@ -81,10 +81,35 @@ const roundTripMultiLineJson = `{
 
 var jsonScenarios = []formatScenario{
 	{
+		description:  "array empty",
+		skipDoc:      true,
+		input:        "[]",
+		scenarioType: "roundtrip-ndjson",
+		indent:       0,
+		expected:     "[]\n",
+	},
+	{
+		description:  "array has scalar",
+		skipDoc:      true,
+		input:        "[3]",
+		scenarioType: "roundtrip-ndjson",
+		indent:       0,
+		expected:     "[3]\n",
+	},
+	{
+		description:  "array has object",
+		skipDoc:      true,
+		input:        `[{"x": 3}]`,
+		scenarioType: "roundtrip-ndjson",
+		indent:       0,
+		expected:     "[{\"x\":3}]\n",
+	},
+	{
 		description:  "array null",
 		skipDoc:      true,
 		input:        "[null]",
 		scenarioType: "roundtrip-ndjson",
+		indent:       0,
 		expected:     "[null]\n",
 	},
 	{
@@ -93,6 +118,7 @@ var jsonScenarios = []formatScenario{
 		input:        "[{}]",
 		expression:   `[.. | type]`,
 		scenarioType: "roundtrip-ndjson",
+		indent:       0,
 		expected:     "[\"!!seq\",\"!!map\"]\n",
 	},
 	{
@@ -195,15 +221,15 @@ var jsonScenarios = []formatScenario{
 		scenarioType:   "encode",
 	},
 	{
-		description:    "Roundtrip NDJSON",
-		subdescription: "Unfortunately the json encoder strips leading spaces of values.",
-		input:          sampleNdJson,
-		expected:       expectedRoundTripSampleNdJson,
-		scenarioType:   "roundtrip-ndjson",
+		description:  "Roundtrip JSON Lines / NDJSON",
+		input:        sampleNdJson,
+		expected:     expectedRoundTripSampleNdJson,
+		scenarioType: "roundtrip-ndjson",
+		indent:       0,
 	},
 	{
 		description:    "Roundtrip multi-document JSON",
-		subdescription: "The NDJSON parser can also handle multiple multi-line json documents in a single file!",
+		subdescription: "The parser can also handle multiple multi-line json documents in a single file (despite this not being in the JSON Lines / NDJSON spec). Typically you would have one entire JSON document per line, but the parser also supports multiple multi-line json documents",
 		input:          sampleMultiLineJson,
 		expected:       roundTripMultiLineJson,
 		scenarioType:   "roundtrip-multi",
@@ -225,13 +251,13 @@ var jsonScenarios = []formatScenario{
 		scenarioType:   "roundtrip-ndjson",
 	},
 	{
-		description:  "Decode NDJSON",
+		description:  "Decode JSON Lines / NDJSON",
 		input:        sampleNdJson,
 		expected:     expectedNdJsonYaml,
 		scenarioType: "decode-ndjson",
 	},
 	{
-		description:  "Decode NDJSON, maintain key order",
+		description:  "Decode JSON Lines / NDJSON, maintain key order",
 		skipDoc:      true,
 		input:        sampleNdJsonKey,
 		expected:     expectedJsonKeysInOrder,
@@ -302,8 +328,11 @@ func documentRoundtripNdJsonScenario(w *bufio.Writer, s formatScenario, indent i
 	}
 
 	writeOrPanic(w, "will output\n")
+	prefs := ConfiguredJSONPreferences.Copy()
+	prefs.Indent = indent
+	prefs.UnwrapScalar = false
 
-	writeOrPanic(w, fmt.Sprintf("```yaml\n%v```\n\n", mustProcessFormatScenario(s, NewJSONDecoder(), NewJSONEncoder(indent, false, false))))
+	writeOrPanic(w, fmt.Sprintf("```yaml\n%v```\n\n", mustProcessFormatScenario(s, NewJSONDecoder(), NewJSONEncoder(prefs))))
 }
 
 func documentDecodeNdJsonScenario(w *bufio.Writer, s formatScenario) {
@@ -328,7 +357,7 @@ func documentDecodeNdJsonScenario(w *bufio.Writer, s formatScenario) {
 
 	writeOrPanic(w, "will output\n")
 
-	writeOrPanic(w, fmt.Sprintf("```yaml\n%v```\n\n", mustProcessFormatScenario(s, NewJSONDecoder(), NewYamlEncoder(s.indent, false, ConfiguredYamlPreferences))))
+	writeOrPanic(w, fmt.Sprintf("```yaml\n%v```\n\n", mustProcessFormatScenario(s, NewJSONDecoder(), NewYamlEncoder(ConfiguredYamlPreferences))))
 }
 
 func decodeJSON(t *testing.T, jsonString string) *CandidateNode {
@@ -357,19 +386,23 @@ func decodeJSON(t *testing.T, jsonString string) *CandidateNode {
 }
 
 func testJSONScenario(t *testing.T, s formatScenario) {
+	prefs := ConfiguredJSONPreferences.Copy()
+	prefs.Indent = s.indent
+	prefs.UnwrapScalar = false
 	switch s.scenarioType {
 	case "encode":
-		test.AssertResultWithContext(t, s.expected, mustProcessFormatScenario(s, NewYamlDecoder(ConfiguredYamlPreferences), NewJSONEncoder(s.indent, false, false)), s.description)
+		test.AssertResultWithContext(t, s.expected, mustProcessFormatScenario(s, NewYamlDecoder(ConfiguredYamlPreferences), NewJSONEncoder(prefs)), s.description)
 	case "decode":
-		test.AssertResultWithContext(t, s.expected, mustProcessFormatScenario(s, NewJSONDecoder(), NewJSONEncoder(s.indent, false, false)), s.description)
+		test.AssertResultWithContext(t, s.expected, mustProcessFormatScenario(s, NewJSONDecoder(), NewJSONEncoder(prefs)), s.description)
 	case "decode-ndjson":
-		test.AssertResultWithContext(t, s.expected, mustProcessFormatScenario(s, NewJSONDecoder(), NewYamlEncoder(2, false, ConfiguredYamlPreferences)), s.description)
+		test.AssertResultWithContext(t, s.expected, mustProcessFormatScenario(s, NewJSONDecoder(), NewYamlEncoder(ConfiguredYamlPreferences)), s.description)
 	case "roundtrip-ndjson":
-		test.AssertResultWithContext(t, s.expected, mustProcessFormatScenario(s, NewJSONDecoder(), NewJSONEncoder(0, false, false)), s.description)
+		test.AssertResultWithContext(t, s.expected, mustProcessFormatScenario(s, NewJSONDecoder(), NewJSONEncoder(prefs)), s.description)
 	case "roundtrip-multi":
-		test.AssertResultWithContext(t, s.expected, mustProcessFormatScenario(s, NewJSONDecoder(), NewJSONEncoder(2, false, false)), s.description)
+		prefs.Indent = 2
+		test.AssertResultWithContext(t, s.expected, mustProcessFormatScenario(s, NewJSONDecoder(), NewJSONEncoder(prefs)), s.description)
 	case "decode-error":
-		result, err := processFormatScenario(s, NewJSONDecoder(), NewJSONEncoder(2, false, false))
+		result, err := processFormatScenario(s, NewJSONDecoder(), NewJSONEncoder(prefs))
 		if err == nil {
 			t.Errorf("Expected error '%v' but it worked: %v", s.expectedError, result)
 		} else {
@@ -396,7 +429,7 @@ func documentJSONDecodeScenario(t *testing.T, w *bufio.Writer, s formatScenario)
 	writeOrPanic(w, "will output\n")
 
 	var output bytes.Buffer
-	printer := NewSimpleYamlPrinter(bufio.NewWriter(&output), YamlOutputFormat, true, false, 2, true)
+	printer := NewSimpleYamlPrinter(bufio.NewWriter(&output), true, 2, true)
 
 	node := decodeJSON(t, s.input)
 
@@ -455,8 +488,11 @@ func documentJSONEncodeScenario(w *bufio.Writer, s formatScenario) {
 		writeOrPanic(w, fmt.Sprintf("```bash\nyq -o=json -I=%v '%v' sample.yml\n```\n", s.indent, expression))
 	}
 	writeOrPanic(w, "will output\n")
+	prefs := ConfiguredJSONPreferences.Copy()
+	prefs.Indent = s.indent
+	prefs.UnwrapScalar = false
 
-	writeOrPanic(w, fmt.Sprintf("```json\n%v```\n\n", mustProcessFormatScenario(s, NewYamlDecoder(ConfiguredYamlPreferences), NewJSONEncoder(s.indent, false, false))))
+	writeOrPanic(w, fmt.Sprintf("```json\n%v```\n\n", mustProcessFormatScenario(s, NewYamlDecoder(ConfiguredYamlPreferences), NewJSONEncoder(prefs))))
 }
 
 func TestJSONScenarios(t *testing.T) {
